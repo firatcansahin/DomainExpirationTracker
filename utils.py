@@ -1,7 +1,8 @@
 import whois
 from datetime import datetime, timedelta
 from flask_mail import Message
-from app import mail
+from app import mail, db
+from models import Domain
 import socket
 
 def calculate_time_remaining(date):
@@ -23,6 +24,8 @@ def format_time_status(days):
         return "Unknown"
     if days < 0:
         return "Expired"
+    if days <= 5:
+        return f"Warning: {days} days remaining"
     return f"{days} days remaining"
 
 def format_availability_date(days):
@@ -49,11 +52,17 @@ def check_domain_status(domain_name):
         else:
             status_text = str(w.status).lower() if w.status else ''
 
+        # Calculate availability date for pendingDelete domains
+        availability_date = None
         if 'pendingdelete' in status_text:
             status = 'PendingDelete'
-            time_info = format_availability_date(abs(days_remaining) + 5 if days_remaining else None)  # Typical grace period
+            availability_date = datetime.now() + timedelta(days=5)
+            time_info = format_availability_date(5)  # Standard 5-day redemption period
         else:
-            status = 'Active' if days_remaining and days_remaining > 0 else 'Expired'
+            if days_remaining and days_remaining <= 5:
+                status = 'Expiring Soon'
+            else:
+                status = 'Active' if days_remaining and days_remaining > 0 else 'Expired'
             time_info = format_time_status(days_remaining)
 
         # Construct detailed status information
@@ -62,7 +71,8 @@ def check_domain_status(domain_name):
             'whois_server': w.whois_server,
             'name_servers': w.name_servers if isinstance(w.name_servers, list) else [w.name_servers] if w.name_servers else [],
             'dnssec': getattr(w, 'dnssec', 'Unknown'),
-            'status_codes': w.status if isinstance(w.status, list) else [w.status] if w.status else []
+            'status_codes': w.status if isinstance(w.status, list) else [w.status] if w.status else [],
+            'availability_date': availability_date.strftime('%Y-%m-%d') if availability_date else None
         }
 
         return {
@@ -71,7 +81,8 @@ def check_domain_status(domain_name):
             'expiration_date': expiration_date,
             'time_info': time_info,
             'detailed_info': detailed_info,
-            'raw_response': str(w)
+            'raw_response': str(w),
+            'needs_warning': days_remaining is not None and days_remaining <= 5
         }
     except Exception as e:
         return {
@@ -80,20 +91,60 @@ def check_domain_status(domain_name):
             'expiration_date': None,
             'time_info': 'Unable to check',
             'detailed_info': {'error': str(e)},
-            'raw_response': str(e)
+            'raw_response': str(e),
+            'needs_warning': False
         }
 
-def send_notification_email(user_email, domain_name, status_change):
-    msg = Message(
-        'Domain Status Change Notification',
-        sender='noreply@domaintracker.com',
-        recipients=[user_email]
-    )
-    msg.body = f"""
+def send_notification_email(user_email, domain_name, status_change, expiration_date=None):
+    subject = 'Domain Status Change Notification'
+    body = f"""
     Domain Status Change Alert
     
     Domain: {domain_name}
-    New Status: {status_change}
-    Time: {datetime.utcnow()}
+    Status: {status_change}
     """
+    
+    if expiration_date:
+        body += f"\nExpiration Date: {expiration_date.strftime('%Y-%m-%d')}"
+        if isinstance(status_change, str) and "expiring" in status_change.lower():
+            subject = 'Domain Expiration Warning'
+            body += "\n\nPlease take action to renew your domain before it expires."
+    
+    body += f"\nTime: {datetime.utcnow()}"
+    
+    msg = Message(
+        subject,
+        sender='noreply@domaintracker.com',
+        recipients=[user_email]
+    )
+    msg.body = body
     mail.send(msg)
+
+def check_expiring_domains():
+    """Background task to check for expiring domains and send notifications"""
+    try:
+        # Query domains expiring within 5 days
+        expiring_soon = Domain.query.filter(
+            Domain.expiration_date <= datetime.now() + timedelta(days=5),
+            Domain.expiration_date > datetime.now()
+        ).all()
+        
+        for domain in expiring_soon:
+            # Check current status
+            status = check_domain_status(domain.name)
+            if status['needs_warning']:
+                send_notification_email(
+                    domain.owner.email,
+                    domain.name,
+                    f"Domain expiring in {calculate_time_remaining(domain.expiration_date)} days",
+                    domain.expiration_date
+                )
+                
+            # Update domain status
+            domain.status = status['status']
+            domain.last_check = datetime.utcnow()
+        
+        db.session.commit()
+        
+    except Exception as e:
+        print(f"Error checking expiring domains: {e}")

@@ -36,6 +36,17 @@
     <div class="col">
         <div class="card">
             <div class="card-body">
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
@@ -55,13 +66,36 @@
                                 <td>{{ domain.name }}</td>
                                 <td>{{ domain.tld }}</td>
                                 <td>
-                                    <span class="badge bg-{{ 'success' if domain.status == 'Active' else 'warning' if domain.status == 'PendingDelete' else 'danger' }}">
-                                        {{ domain.status }}
+                                    {% if domain.status == 'Active' %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% elif domain.status == 'PendingDelete' %}
+                                        <span class="badge bg-warning">PendingDelete</span>
+                                    {% elif domain.status == 'Expiring Soon' %}
+                                        <span class="badge bg-warning">
+                                            <i data-feather="alert-triangle" class="me-1"></i>
+                                            Expiring Soon
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ domain.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if domain.status == 'PendingDelete' %}
+                                        <span class="text-warning">
+                                            Available: {{ domain.detailed_info.availability_date }}
+                                        </span>
+                                    {% else %}
+                                        <span class="{% if 'Warning' in domain.time_info %}text-warning{% endif %}">
+                                            {{ domain.time_info }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ domain.registration_date.strftime('%Y-%m-%d') if domain.registration_date else 'N/A' }}</td>
+                                <td>
+                                    <span class="{% if domain.status == 'Expiring Soon' %}text-warning{% endif %}">
+                                        {{ domain.expiration_date.strftime('%Y-%m-%d') if domain.expiration_date else 'N/A' }}
                                     </span>
                                 </td>
-                                <td>{{ domain.time_info }}</td>
-                                <td>{{ domain.registration_date.strftime('%Y-%m-%d') if domain.registration_date else 'N/A' }}</td>
-                                <td>{{ domain.expiration_date.strftime('%Y-%m-%d') if domain.expiration_date else 'N/A' }}</td>
                                 <td>
                                     <button type="button" class="btn btn-sm btn-info" 
                                             data-bs-toggle="tooltip" 
@@ -69,7 +103,8 @@
                                             title="Registrar: {{ domain.detailed_info.registrar or 'Unknown' }}<br>
                                                    WHOIS Server: {{ domain.detailed_info.whois_server or 'Unknown' }}<br>
                                                    Name Servers: {{ domain.detailed_info.name_servers|join(', ') or 'Unknown' }}<br>
-                                                   DNSSEC: {{ domain.detailed_info.dnssec }}">
+                                                   DNSSEC: {{ domain.detailed_info.dnssec }}{% if domain.status == 'PendingDelete' %}<br>
+                                                   Available: {{ domain.detailed_info.availability_date }}{% endif %}">
                                         <i data-feather="info"></i>
                                     </button>
                                 </td>
