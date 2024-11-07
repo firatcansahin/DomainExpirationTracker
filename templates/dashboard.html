@@ -39,17 +39,31 @@
                             <tr>
                                 <th>Domain</th>
                                 <th>Status</th>
-                                <th>Expiration</th>
-                                <th>Last Check</th>
+                                <th>Time Info</th>
+                                <th>Details</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for domain in domains %}
                             <tr>
                                 <td>{{ domain.name }}</td>
-                                <td><span class="badge bg-{{ 'success' if domain.status == 'Active' else 'danger' }}">{{ domain.status }}</span></td>
-                                <td>{{ domain.expiration_date.strftime('%Y-%m-%d') if domain.expiration_date else 'N/A' }}</td>
-                                <td>{{ domain.last_check.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if domain.status == 'Active' else 'warning' if domain.status == 'PendingDelete' else 'danger' }}">
+                                        {{ domain.status }}
+                                    </span>
+                                </td>
+                                <td>{{ domain.time_info }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-info" 
+                                            data-bs-toggle="tooltip" 
+                                            data-bs-html="true"
+                                            title="Registrar: {{ domain.detailed_info.registrar or 'Unknown' }}<br>
+                                                   WHOIS Server: {{ domain.detailed_info.whois_server or 'Unknown' }}<br>
+                                                   Name Servers: {{ domain.detailed_info.name_servers|join(', ') or 'Unknown' }}<br>
+                                                   DNSSEC: {{ domain.detailed_info.dnssec }}">
+                                        <i data-feather="info"></i>
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>

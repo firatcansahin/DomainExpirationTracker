@@ -30,7 +30,13 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    domains = Domain.query.filter_by(user_id=current_user.id)
+    domains = Domain.query.filter_by(user_id=current_user.id).all()
+    # Get latest status for each domain
+    for domain in domains:
+        status = check_domain_status(domain.name)
+        domain.status = status['status']
+        domain.time_info = status['time_info']
+        domain.detailed_info = status['detailed_info']
     return render_template('dashboard.html', domains=domains)
 
 @app.route('/domain/add', methods=['POST'])
@@ -58,7 +64,15 @@ def add_domain():
     domain.registration_date = status.get('registration_date')
     domain.expiration_date = status.get('expiration_date')
     
+    # Store the check result
+    domain_check = DomainCheck(
+        domain=domain,
+        status=status['status'],
+        response=status['raw_response']
+    )
+    
     db.session.add(domain)
+    db.session.add(domain_check)
     db.session.commit()
     
     flash('Domain added successfully')
@@ -78,4 +92,11 @@ def domain_list():
         query = query.filter(db.func.length(Domain.name) == int(length_filter))
     
     domains = query.all()
+    # Get latest status for each domain
+    for domain in domains:
+        status = check_domain_status(domain.name)
+        domain.status = status['status']
+        domain.time_info = status['time_info']
+        domain.detailed_info = status['detailed_info']
+    
     return render_template('domain_list.html', domains=domains)
