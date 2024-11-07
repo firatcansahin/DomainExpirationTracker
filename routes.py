@@ -1,23 +1,93 @@
 from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
-from app import app, db, login_manager
+from app import app, db, login_manager, mail
 from models import User, Domain, DomainCheck
 from utils import check_domain_status, send_notification_email
 from datetime import datetime
 import urllib.parse
+from flask_mail import Message
+import secrets
 
 @login_manager.user_loader
 def load_user(id):
     return db.session.get(User, int(id))
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Form validation
+        if not all([username, email, password, confirm_password]):
+            flash('All fields are required', 'error')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return render_template('register.html')
+        
+        # Check if username or email already exists
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'error')
+            return render_template('register.html')
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered', 'error')
+            return render_template('register.html')
+        
+        # Create new user
+        user = User(username=username, email=email)
+        user.set_password(password)
+        
+        try:
+            db.session.add(user)
+            db.session.commit()
+            
+            # Send welcome email
+            msg = Message(
+                'Welcome to Domain Tracker',
+                sender='noreply@domaintracker.com',
+                recipients=[email]
+            )
+            msg.body = f'''Welcome to Domain Tracker!
+            
+Your account has been successfully created.
+Username: {username}
+
+You can now login at {request.host_url}login
+
+Thank you for joining us!
+'''
+            mail.send(msg)
+            
+            flash('Registration successful! You can now login.', 'success')
+            return redirect(url_for('login'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash('An error occurred during registration. Please try again.', 'error')
+            return render_template('register.html')
+    
+    return render_template('register.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
         if user and user.check_password(request.form['password']):
             login_user(user)
-            return redirect(url_for('dashboard'))
-        flash('Invalid username or password')
+            next_page = request.args.get('next')
+            return redirect(next_page if next_page else url_for('dashboard'))
+        flash('Invalid username or password', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -64,8 +134,8 @@ def add_domain():
     domain.registration_date = status.get('registration_date')
     domain.expiration_date = status.get('expiration_date')
     
-    db.session.add(domain)  # Add domain first to get its ID
-    db.session.flush()      # Flush to ensure domain has an ID
+    db.session.add(domain)
+    db.session.flush()
     
     domain_check = DomainCheck(
         domain_id=domain.id,

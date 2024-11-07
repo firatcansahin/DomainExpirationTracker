@@ -1,0 +1,38 @@
+# Domain Tracker Installation Guide
+
+## Prerequisites
+- Python 3.8 or higher
+- pip (Python package manager)
+
+## Installation Steps
+
+1. Clone the repository or download the source code
+2. Open a terminal in the project directory
+
+3. Install required packages:
+   ```
+   pip install -r requirements.txt
+   ```
+
+4. Initialize the database:
+   The application uses SQLite by default, which will be created automatically on first run.
+
+5. Run the application:
+   ```
+   python main.py
+   ```
+
+6. Access the application:
+   Open your web browser and navigate to: http://localhost:5000
+
+## Default Login Credentials
+Username: admin
+Password: admin123
+
+## Configuration (Optional)
+- To enable email notifications, set up these environment variables:
+  - MAIL_USERNAME
+  - MAIL_PASSWORD
+
+## Note
+This is a development setup. For production, use a proper WSGI server and secure configuration.
