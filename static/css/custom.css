@@ -1,0 +1,35 @@
+/* Minimal custom styles to complement Bootstrap dark theme */
+.navbar {
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.footer {
+    border-top: 1px solid var(--bs-border-color);
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+}
+
+main {
+    margin-bottom: 100px;
+}
+
+.alert {
+    transition: opacity 0.5s ease-in-out;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.badge {
+    font-size: 0.8em;
+}
+
+.card {
+    border-color: var(--bs-border-color);
+}
+
+.card-header {
+    background-color: rgba(0, 0, 0, 0.1);
+}
