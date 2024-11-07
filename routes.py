@@ -64,14 +64,15 @@ def add_domain():
     domain.registration_date = status.get('registration_date')
     domain.expiration_date = status.get('expiration_date')
     
-    # Store the check result
+    db.session.add(domain)  # Add domain first to get its ID
+    db.session.flush()      # Flush to ensure domain has an ID
+    
     domain_check = DomainCheck(
-        domain=domain,
+        domain_id=domain.id,
         status=status['status'],
         response=status['raw_response']
     )
     
-    db.session.add(domain)
     db.session.add(domain_check)
     db.session.commit()
     
