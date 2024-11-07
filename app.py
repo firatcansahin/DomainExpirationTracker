@@ -40,3 +40,12 @@ with app.app_context():
     import models
     import routes
     db.create_all()
+    
+    # Create default admin user if not exists
+    from models import User
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        admin = User(username='admin', email='admin@example.com')
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
